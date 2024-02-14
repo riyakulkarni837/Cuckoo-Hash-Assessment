@@ -37,63 +37,61 @@ class CuckooHash24:
 	# you should *NOT* change any of the existing code above this line
 	# you may however define additional instance variables inside the __init__ method.
 
-	def insert(self, key: int) -> bool:
-		cycles = 0
-		function_id = 0
+    def insert(self, key: int) -> bool:
+        table_id = 0
+        for _ in range(self.CYCLE_THRESHOLD + 1):
+        
+        bucket_idx = self.hash_func(key, table_id)
+        
+        bucket = self.tables[table_id][bucket_idx]
 
-		while True:
-			if cycles > self.CYCLE_THRESHOLD:
-				return False
-			hash0 = self.hash_func(key, function_id)
-			hash1 = self.hash_func(key, 1-function_id)
-			if self.table[hash0] is None:
-				self.table[hash0] = [key]
-				return True
-			elif len(self.table[hash0]) < self.bucket_size:
-				self.table[hash0].append(key)
-				return True
-			elif self.table[hash1] is None:
-				self.table[hash1] = [key]
-				return True
-			elif len(self.table[hash1]) < self.bucket_size:
-				self.table[hash1].append(key)
-				return True
-			else:
-				idx = self.get_rand_bucket_index(hash0)
-				key, self.table[hash0][idx] = self.table[hash0][idx], key
-				cycles += 1
+    
+        if bucket is None:
+            self.tables[table_id][bucket_idx] = [key]
+            return True
+        
+        elif len(bucket) < self.bucket_size:
+            bucket.append(key)
+            return True
+    
+        else:
+            
+            if (self.tables[table_id][self.hash_func(key, 0)] is None or len(self.tables[table_id][self.hash_func(key, 0)]) < self.bucket_size) \
+                    or (self.tables[table_id][self.hash_func(key, 1)] is None or len(self.tables[table_id][self.hash_func(key, 1)]) < self.bucket_size):
+                bucket_idx = self.hash_func(key, 0)
+            else:
+                bucket_idx = self.hash_func(key, 0)
+                displaced_idx = self.get_rand_idx_from_bucket(bucket_idx, table_id)
+                key_to_displace = self.tables[table_id][bucket_idx][displaced_idx]
+                self.tables[table_id][bucket_idx][displaced_idx] = key
+                key = key_to_displace
+
+            table_id = 1 - table_id
+    return False
 
 
 	def lookup(self, key: int) -> bool:
-		hash0 = self.hash_func(key, 0)
-		hash1 = self.hash_func(key, 1)
-		if self.table[hash0] is not None and key in self.table[hash0]:
-			return True
-		if self.table[hash1] is not None and key in self.table[hash1]:
-			return True
-		return False
-		
+		# Check if the key is present in either of the hash buckets
+		hash0, hash1 = self.hash_func(key, 0), self.hash_func(key, 1)
+		return any(key in (self.table[h] if self.table[h] else []) for h in [hash0, hash1])
 
 	def delete(self, key: int) -> None:
-		hash0 = self.hash_func(key, 0)
-		hash1 = self.hash_func(key, 1)
-		if self.table[hash0] is not None and key in self.table[hash0]:
-			self.table[hash0].remove(key)
-			if(len(self.table[hash0]) == 0):
-				self.table[hash0] = None
-		if self.table[hash1] is not None and key in self.table[hash1]:
-			self.table[hash1].remove(key)
-			if(len(self.table[hash1]) == 0):
-				self.table[hash1] = None
+		# Delete the key from the hash table if it exists
+		for h in [self.hash_func(key, 0), self.hash_func(key, 1)]:
+			if self.table[h] and key in self.table[h]:
+				self.table[h].remove(key)
+				if not self.table[h]:
+					self.table[h] = None
 
 	def rehash(self, new_table_size: int) -> None:
+		# Rehash the existing keys into a new table with the specified size
 		self.__num_rehashes += 1
-		self.table_size = new_table_size # do not modify this line
-		old_table = self.table
-		self.table = [None]*self.table_size
-		for key in old_table:
-			if key is not None:
-				for k in key:
+		self.table_size = new_table_size
+		old_table, self.table = self.table, [None] * self.table_size
+
+		for key_bucket in old_table:
+			if key_bucket:
+				for k in key_bucket:
 					self.insert(k)
 
 	# feel free to define new methods in addition to the above
