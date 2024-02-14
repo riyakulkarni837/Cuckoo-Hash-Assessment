@@ -1,5 +1,5 @@
-# explanations for member functions are provided in requirements.py
-# each file that uses a cuckoo hash should import it from this file.
+	# explanations for member functions are provided in requirements.py
+	# each file that uses a cuckoo hash should import it from this file.
 import random as rand
 from typing import List, Optional
 
@@ -10,89 +10,109 @@ class CuckooHash24:
 		self.CYCLE_THRESHOLD = 10
 
 		self.table_size = init_size
-		self.table = [None]*self.table_size
+		self.tables = [[None]*init_size for _ in range(2)]
 
-	def get_rand_bucket_index(self, bucket_idx: int) -> int:
-		# you must use this function when you need to evict a random key from a bucket. this function
-		# randomly chooses an index from a given cell index. this ensures that the random
+	def get_rand_idx_from_bucket(self, bucket_idx: int, table_id: int) -> int:
+		# you must use this function when you need to displace a random key from a bucket during insertion (see the description in requirements.py). 
+		# this function randomly chooses an index from a given bucket for a given table. this ensures that the random 
 		# index chosen by your code and our test script match.
-		#
-		# for example, if you need to remove a random element from the bucket at table index 5,
-		# you will call get_rand_bucket_index(5) to determine which key from that bucket to evict, i.e. if get_random_bucket_index(5) returns 2, you
-		# will evict the key at index 2 in that bucket.
-		rand.seed(int(str(bucket_idx)))
+		# 
+		# for example, if you are inserting some key x into table 0, and hash_func(x, 0) returns 5, and the bucket in index 5 of table 0 already has 4 elements,
+		# you will call get_rand_bucket_index(5, 0) to determine which key from that bucket to displace, i.e. if get_random_bucket_index(5, 0) returns 2, you
+		# will displace the key at index 2 in that bucket.
+		rand.seed(int(str(bucket_idx) + str(table_id)))
 		return rand.randint(0, self.bucket_size-1)
 
-	def hash_func(self, key: int, func_id: int) -> int:
-		# access h0 via func_id=0, access h1 via func_id=1
-		key = int(str(key) + str(self.__num_rehashes) + str(func_id))
+	def hash_func(self, key: int, table_id: int) -> int:
+		key = int(str(key) + str(self.__num_rehashes) + str(table_id))
 		rand.seed(key)
-		result = rand.randint(0, self.table_size-1)
-		return result
+		return rand.randint(0, self.table_size-1)
 
-	def get_table_contents(self) -> List[Optional[List[int]]]:
+	def get_table_contents(self) -> List[List[Optional[List[int]]]]:
 		# the buckets should be implemented as lists. Table cells with no elements should still have None entries.
-		return self.table
+		return self.tables
 
 	# you should *NOT* change any of the existing code above this line
 	# you may however define additional instance variables inside the __init__ method.
 
-    def insert(self, key: int) -> bool:
-        table_id = 0
-        for _ in range(self.CYCLE_THRESHOLD + 1):
-        
-        bucket_idx = self.hash_func(key, table_id)
-        
-        bucket = self.tables[table_id][bucket_idx]
+	def insert(self, key: int) -> bool:
+		# TODO
+		table_id = 0
+		for _ in range(self.CYCLE_THRESHOLD + 1):
+			# Calculating the bucket index using hash_func  
+			bucket_idx = self.hash_func(key, table_id)
+			# Retrieving the bucket at the calculated index
+			bucket = self.tables[table_id][bucket_idx]
 
-    
-        if bucket is None:
-            self.tables[table_id][bucket_idx] = [key]
-            return True
-        
-        elif len(bucket) < self.bucket_size:
-            bucket.append(key)
-            return True
-    
-        else:
-            
-            if (self.tables[table_id][self.hash_func(key, 0)] is None or len(self.tables[table_id][self.hash_func(key, 0)]) < self.bucket_size) \
+			# If the bucket is None, creating a new bucket with the key
+			if bucket is None:
+				self.tables[table_id][bucket_idx] = [key]
+				return True
+			# If the bucket has space, appending the key to it
+			elif len(bucket) < self.bucket_size:
+				bucket.append(key)
+				return True
+			# The bucket is full, so displacing a key and continue the process
+			else:
+				if (self.tables[table_id][self.hash_func(key, 0)] is None or len(self.tables[table_id][self.hash_func(key, 0)]) < self.bucket_size) \
                     or (self.tables[table_id][self.hash_func(key, 1)] is None or len(self.tables[table_id][self.hash_func(key, 1)]) < self.bucket_size):
-                bucket_idx = self.hash_func(key, 0)
-            else:
-                bucket_idx = self.hash_func(key, 0)
-                displaced_idx = self.get_rand_idx_from_bucket(bucket_idx, table_id)
-                key_to_displace = self.tables[table_id][bucket_idx][displaced_idx]
-                self.tables[table_id][bucket_idx][displaced_idx] = key
-                key = key_to_displace
+					bucket_idx = self.hash_func(key, 0)
+				else:
+					bucket_idx = self.hash_func(key, 0)
+					displaced_idx = self.get_rand_idx_from_bucket(bucket_idx, table_id)
+					key_to_displace = self.tables[table_id][bucket_idx][displaced_idx]
+					self.tables[table_id][bucket_idx][displaced_idx] = key
+					key = key_to_displace
+				table_id = 1 - table_id
+		return False
 
-            table_id = 1 - table_id
-    return False
 
 
 	def lookup(self, key: int) -> bool:
-		# Check if the key is present in either of the hash buckets
-		hash0, hash1 = self.hash_func(key, 0), self.hash_func(key, 1)
-		return any(key in (self.table[h] if self.table[h] else []) for h in [hash0, hash1])
+		# TODO
+		hash_value1 = self.hash_func(key, 0)
+		hash_value2 = self.hash_func(key, 1)
+		if (self.tables[0][hash_value1] is not None and key in self.tables[0][hash_value1]) or (self.tables[1][hash_value2] is not None and key in self.tables[1][hash_value2]):
+			return True
+		return False
+
 
 	def delete(self, key: int) -> None:
-		# Delete the key from the hash table if it exists
-		for h in [self.hash_func(key, 0), self.hash_func(key, 1)]:
-			if self.table[h] and key in self.table[h]:
-				self.table[h].remove(key)
-				if not self.table[h]:
-					self.table[h] = None
+		# TODO
+		for table_id in range(2):
+			bucket_idx = self.hash_func(key, table_id)
+			bucket = self.tables[table_id][bucket_idx]
+			
+			# Checking if the bucket exists and the key is in the bucket
+			if bucket is not None and key in bucket:
+				# Remove the key from the bucket
+				bucket.remove(key)
+
+				# Checking if the bucket is now empty, set to None if so
+				if len(bucket) == 0:
+					self.tables[table_id][bucket_idx] = None
+				return
+		return
+
+
 
 	def rehash(self, new_table_size: int) -> None:
-		# Rehash the existing keys into a new table with the specified size
-		self.__num_rehashes += 1
-		self.table_size = new_table_size
-		old_table, self.table = self.table, [None] * self.table_size
+		self.__num_rehashes += 1; self.table_size = new_table_size # do not modify this line
+		# TODO
+		if new_table_size <= 0:
+			raise ValueError("New table size must be a positive integer.")
 
-		for key_bucket in old_table:
-			if key_bucket:
-				for k in key_bucket:
-					self.insert(k)
+		# Updating the table size	
+		old_tables = [self.tables[0].copy(), self.tables[1].copy()]
+		self.tables = [[None] * new_table_size for _ in range(2)]
+		
+		# Copy keys from old tables to the new tables
+		for old_table in old_tables:
+			if old_table is not None:
+				for bucket in old_table:
+					if bucket is not None:
+						for key in bucket:
+							self.insert(key)
 
 	# feel free to define new methods in addition to the above
 	# fill in the definitions of each required member function (above),
